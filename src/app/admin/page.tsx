@@ -346,6 +346,9 @@ interface UserConfigProps {
 }
 
 const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
+  const [userSettings, setUserSettings] = useState({
+    enableRegistration: false,
+  });
   const { alertModal, showAlert, hideAlert } = useAlertModal();
   const { isLoading, withLoading } = useLoadingState();
   const [showAddUserForm, setShowAddUserForm] = useState(false);
@@ -398,6 +401,14 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
   // 当前登录用户名
   const currentUsername = getAuthInfoFromBrowserCookie()?.username || null;
 
+  useEffect(() => {
+    if (config?.UserConfig) {
+      setUserSettings({
+        enableRegistration: config.UserConfig.AllowRegister,
+      });
+    }
+  }, [config]);
+
   // 使用 useMemo 计算全选状态，避免每次渲染都重新计算
   const selectAllUsers = useMemo(() => {
     const selectableUserCount = config?.UserConfig?.Users?.filter(user =>
@@ -408,6 +419,21 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
     ).length || 0;
     return selectedUsers.size === selectableUserCount && selectedUsers.size > 0;
   }, [selectedUsers.size, config?.UserConfig?.Users, role, currentUsername]);
+
+  // 切换允许注册设置
+  const toggleAllowRegister = async (value: boolean) => {
+    try {
+      // 先更新本地 UI
+      setUserSettings((prev) => ({ ...prev, enableRegistration: value }));
+
+      const res = await fetch('/api/admin/user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'setAllowRegister',
+          allowRegister: value,
+        }),
+      });
 
   // 获取用户组列表
   const userGroups = config?.UserConfig?.Tags || [];
@@ -518,11 +544,11 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
         showSuccess('用户组分配成功', showAlert);
       } catch (err) {
         showError(err instanceof Error ? err.message : '操作失败', showAlert);
+		setUserSettings((prev) => ({ ...prev, enableRegistration: !value }));
         throw err;
       }
     });
   };
-
   const handleBanUser = async (uname: string) => {
     await withLoading(`banUser_${uname}`, () => handleUserAction('ban', uname));
   };
@@ -793,7 +819,36 @@ const UserConfig = ({ config, role, refreshConfig }: UserConfigProps) => {
         </div>
       </div>
 
-
+      {/* 注册设置 */}
+      <div>
+        <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300 mb-3'>
+          注册设置
+        </h4>
+        <div className='flex items-center justify-between'>
+          <label
+            className={`text-gray-700 dark:text-gray-300
+              }`}
+          >
+            允许新用户注册
+          </label>
+          <button
+            onClick={() =>
+              toggleAllowRegister(!userSettings.enableRegistration)
+            }
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${userSettings.enableRegistration
+              ? 'bg-green-600'
+              : 'bg-gray-200 dark:bg-gray-700'
+              }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${userSettings.enableRegistration
+                ? 'translate-x-6'
+                : 'translate-x-1'
+                }`}
+            />
+          </button>
+        </div>
+      </div>
 
       {/* 用户组管理 */}
       <div>
